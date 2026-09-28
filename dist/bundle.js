@@ -12720,6 +12720,26 @@
       this.image = value;
     }
   };
+  var CanvasTexture = class extends Texture {
+    /**
+     * Constructs a new texture.
+     *
+     * @param {HTMLCanvasElement} [canvas] - The HTML canvas element.
+     * @param {number} [mapping=Texture.DEFAULT_MAPPING] - The texture mapping.
+     * @param {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
+     * @param {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
+     * @param {number} [magFilter=LinearFilter] - The mag filter value.
+     * @param {number} [minFilter=LinearMipmapLinearFilter] - The min filter value.
+     * @param {number} [format=RGBAFormat] - The texture format.
+     * @param {number} [type=UnsignedByteType] - The texture type.
+     * @param {number} [anisotropy=Texture.DEFAULT_ANISOTROPY] - The anisotropy value.
+     */
+    constructor(canvas2, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy) {
+      super(canvas2, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy);
+      this.isCanvasTexture = true;
+      this.needsUpdate = true;
+    }
+  };
   var DepthTexture = class extends Texture {
     /**
      * Constructs a new depth texture.
@@ -15355,6 +15375,63 @@
       if (this.view !== null) data.object.view = Object.assign({}, this.view);
       data.object.filmGauge = this.filmGauge;
       data.object.filmOffset = this.filmOffset;
+      return data;
+    }
+  };
+  var PointLightShadow = class extends LightShadow {
+    /**
+     * Constructs a new point light shadow.
+     */
+    constructor() {
+      super(new PerspectiveCamera(90, 1, 0.5, 500));
+      this.isPointLightShadow = true;
+    }
+  };
+  var PointLight = class extends Light {
+    /**
+     * Constructs a new point light.
+     *
+     * @param {(number|Color|string)} [color=0xffffff] - The light's color.
+     * @param {number} [intensity=1] - The light's strength/intensity measured in candela (cd).
+     * @param {number} [distance=0] - Maximum range of the light. `0` means no limit.
+     * @param {number} [decay=2] - The amount the light dims along the distance of the light.
+     */
+    constructor(color, intensity, distance = 0, decay = 2) {
+      super(color, intensity);
+      this.isPointLight = true;
+      this.type = "PointLight";
+      this.distance = distance;
+      this.decay = decay;
+      this.shadow = new PointLightShadow();
+    }
+    /**
+     * The light's power. Power is the luminous power of the light measured in lumens (lm).
+     * Changing the power will also change the light's intensity.
+     *
+     * @type {number}
+     */
+    get power() {
+      return this.intensity * 4 * Math.PI;
+    }
+    set power(power) {
+      this.intensity = power / (4 * Math.PI);
+    }
+    dispose() {
+      super.dispose();
+      this.shadow.dispose();
+    }
+    copy(source, recursive) {
+      super.copy(source, recursive);
+      this.distance = source.distance;
+      this.decay = source.decay;
+      this.shadow = source.shadow.clone();
+      return this;
+    }
+    toJSON(meta) {
+      const data = super.toJSON(meta);
+      data.object.distance = this.distance;
+      data.object.decay = this.decay;
+      data.object.shadow = this.shadow.toJSON();
       return data;
     }
   };
@@ -21507,7 +21584,7 @@
       if (transmissive.length > 1) transmissive.sort(customTransparentSort || reversePainterSortStable);
       if (transparent.length > 1) transparent.sort(customTransparentSort || reversePainterSortStable);
     }
-    function finish() {
+    function finish2() {
       for (let i = renderItemsIndex, il = renderItems.length; i < il; i++) {
         const renderItem = renderItems[i];
         if (renderItem.id === null) break;
@@ -21525,7 +21602,7 @@
       init,
       push,
       unshift,
-      finish,
+      finish: finish2,
       sort
     };
   }
@@ -22121,7 +22198,7 @@
         scene2.traverse(function(object) {
           if (object.material) {
             if (Array.isArray(object.material)) {
-              object.material.forEach((mat) => mat.needsUpdate = true);
+              object.material.forEach((mat2) => mat2.needsUpdate = true);
             } else {
               object.material.needsUpdate = true;
             }
@@ -27923,60 +28000,101 @@ void main() {
 
   // src/sim.js
   var WORLD = {
-    bounds: { minX: -28, maxX: 28, minZ: -23, maxZ: 23 },
-    house: { minX: -12, maxX: 12, minZ: -20, maxZ: -6 },
-    wallHeight: 3,
-    wallThickness: 0.3,
-    doorGap: { minX: -2, maxX: 2 }
+    bounds: { minX: -30, maxX: 30, minZ: -28, maxZ: 24 },
+    house: { minX: -8, maxX: 8, minZ: -19, maxZ: -8 },
+    wallHeight: 2.7,
+    wallThickness: 0.25,
+    doorGap: { minX: -1, maxX: 1 },
+    // front door, in the south wall
+    hallGap: { minX: -2, maxX: 2 },
+    // opening in the interior dividing wall
+    interiorZ: -14
+    // the wall splitting front from back
   };
   var T = WORLD.wallThickness;
   var H = WORLD.house;
+  var IZ = WORLD.interiorZ;
   var WALLS = [
-    { x1: H.minX, z1: H.minZ, x2: H.maxX, z2: H.minZ + T },
+    // exterior
+    { x1: H.minX, z1: H.minZ, z2: H.minZ + T, x2: H.maxX },
     // north
     { x1: H.minX, z1: H.maxZ - T, x2: WORLD.doorGap.minX, z2: H.maxZ },
-    // south-west
+    // south-west of the door
     { x1: WORLD.doorGap.maxX, z1: H.maxZ - T, x2: H.maxX, z2: H.maxZ },
-    // south-east
+    // south-east of the door
     { x1: H.minX, z1: H.minZ, x2: H.minX + T, z2: H.maxZ },
     // west
-    { x1: H.maxX - T, z1: H.minZ, x2: H.maxX, z2: H.maxZ }
+    { x1: H.maxX - T, z1: H.minZ, x2: H.maxX, z2: H.maxZ },
     // east
+    // interior divider with a central opening
+    { x1: H.minX, z1: IZ - T / 2, x2: WORLD.hallGap.minX, z2: IZ + T / 2 },
+    { x1: WORLD.hallGap.maxX, z1: IZ - T / 2, x2: H.maxX, z2: IZ + T / 2 }
   ];
   var FURNITURE = [
-    { x1: -10.25, z1: -7.95, x2: -7.75, z2: -7.05, kind: "sofa", h: 0.85 },
-    { x1: 6, z1: -9.5, x2: 8, z2: -8.5, kind: "table", h: 0.75 },
-    { x1: -2.5, z1: -18.9, x2: 0.5, z2: -18.1, kind: "shelf", h: 1.8 }
+    // ---- living room (front west)
+    { x1: -7.4, z1: -12.6, x2: -6.2, z2: -9.4, h: 0.8, kind: "sofa" },
+    { x1: -7, z1: -14.1, x2: -6.6, z2: -13.7, h: 0.45, kind: "sideTable" },
+    { x1: -5.6, z1: -11.7, x2: -4.2, z2: -10.3, h: 0.42, kind: "coffeeTable" },
+    { x1: -6.4, z1: -13.6, x2: -4.2, z2: -13.1, h: 0.5, kind: "tvStand" },
+    { x1: -7.6, z1: -8.6, x2: -3.2, z2: -10.4, h: 0.02, kind: "rug", flat: true },
+    { x1: -7.3, z1: -9.9, x2: -6.85, z2: -9.45, h: 1.6, kind: "lamp" },
+    // ---- kitchen (front east)
+    { x1: 6.6, z1: -13, x2: 7.75, z2: -9, h: 0.92, kind: "counter" },
+    { x1: 6.7, z1: -13.85, x2: 7.7, z2: -13.05, h: 1.85, kind: "fridge" },
+    { x1: 2.6, z1: -12.4, x2: 4.6, z2: -10.9, h: 0.75, kind: "diningTable" },
+    { x1: 3.15, z1: -10.75, x2: 3.7, z2: -10.25, h: 0.9, kind: "chair" },
+    { x1: 3.55, z1: -13, x2: 4.1, z2: -12.55, h: 0.9, kind: "chair" },
+    // ---- bedroom (back west)
+    { x1: -7.4, z1: -18.6, x2: -5, z2: -16.4, h: 0.55, kind: "bed" },
+    { x1: -7.4, z1: -16.2, x2: -6.9, z2: -15.7, h: 0.55, kind: "nightstand" },
+    { x1: -4.6, z1: -18.7, x2: -3.4, z2: -18.1, h: 2, kind: "wardrobe" },
+    { x1: -6.8, z1: -15.6, x2: -3, z2: -14.6, h: 0.02, kind: "rug", flat: true },
+    // ---- study (back east)
+    { x1: 5.5, z1: -17.4, x2: 7.5, z2: -16.3, h: 0.75, kind: "desk" },
+    { x1: 5, z1: -16.1, x2: 5.6, z2: -15.5, h: 0.95, kind: "deskChair" },
+    { x1: 0.6, z1: -18.6, x2: 1.4, z2: -16, h: 2, kind: "bookshelf" },
+    { x1: 0.7, z1: -15.6, x2: 1.3, z2: -15, h: 1.3, kind: "cabinet" }
   ];
-  var SOLIDS = WALLS.concat(FURNITURE);
+  var SOLIDS = WALLS.concat(FURNITURE.filter((f) => !f.flat));
+  var WINDOWS = [
+    { wall: "north", at: -5, width: 1.8 },
+    { wall: "north", at: 2.5, width: 1.8 },
+    { wall: "west", at: -11.5, width: 1.6 },
+    { wall: "east", at: -11, width: 1.6 },
+    { wall: "south", at: -5.5, width: 1.4 },
+    { wall: "south", at: 5.5, width: 1.4 }
+  ];
   var VAN = { x1: -2.75, z1: 7, x2: 2.75, z2: 9.4, h: 2.4 };
   var DROP = { x: 0, z: 4.5 };
   var LOOT_SPOTS = [
-    { x: -8, z: -17, label: "TV", node: "tv", value: 1 },
-    { x: 8, z: -17, label: "Laptop", node: "pc", value: 1 },
-    { x: -8, z: -9.5, label: "Safe", node: "safe", value: 1 }
+    { x: -5.3, z: -12.9, label: "TV", node: "living" },
+    { x: 6.6, z: -16.05, label: "Laptop", node: "study" },
+    { x: -4.2, z: -17.6, label: "Safe", node: "bedroom" }
   ];
   var NODES = {
-    van: { x: 0, z: 4.5, edges: ["doorOut"] },
-    doorOut: { x: 0, z: 2.5, edges: ["van", "doorIn"] },
-    // NOTE: doorIn deliberately has no direct edge to `safe`. The straight line
-    // clips the south wall's corner at the door jamb, which wedged the thief.
-    // Everything routes hub-first instead. test/sim.test.js guards this.
-    doorIn: { x: 0, z: -4.5, edges: ["doorOut", "hub"] },
-    hub: { x: 0, z: -12, edges: ["doorIn", "tv", "pc", "safe"] },
-    tv: { x: -6.5, z: -14.5, edges: ["hub"] },
-    pc: { x: 6.5, z: -14.5, edges: ["hub"] },
-    safe: { x: -6.5, z: -9.5, edges: ["hub"] }
+    van: { x: 0, z: 5, edges: ["doorOut"] },
+    doorOut: { x: 0, z: -5, edges: ["van", "doorIn"] },
+    doorIn: { x: 0, z: -9.6, edges: ["doorOut", "frontHub"] },
+    frontHub: { x: 0, z: -11.2, edges: ["doorIn", "living", "kitchen", "opening"] },
+    living: { x: -3.6, z: -11.2, edges: ["frontHub"] },
+    kitchen: { x: 4.5, z: -9.6, edges: ["frontHub"] },
+    opening: { x: 0, z: -14, edges: ["frontHub", "bedroom", "study"] },
+    bedroom: { x: -4.4, z: -15.6, edges: ["opening"] },
+    study: { x: 6.5, z: -15.5, edges: ["opening"] }
   };
   var WEAPONS = {
     pistol: { name: "Pistol", dmg: 26, cd: 0.24, mag: 12, reload: 1.15, pellets: 1, spread: 0.02, auto: false },
     shotgun: { name: "Shotgun", dmg: 13, cd: 0.85, mag: 6, reload: 1.6, pellets: 9, spread: 0.15, auto: false }
   };
   var TUNING = {
-    playerSpeed: 4.6,
-    playerRadius: 0.45,
+    playerSpeed: 4.2,
+    playerSprintSpeed: 6.6,
+    playerCrouchSpeed: 2,
+    playerRadius: 0.42,
+    eyeHeight: 1.62,
+    crouchEyeHeight: 1.05,
     thiefSpeed: 2.6,
-    thiefRadius: 0.45,
+    thiefRadius: 0.42,
     thiefHealth: 100,
     thiefDamage: 9,
     thiefSight: 26,
@@ -28094,7 +28212,7 @@ void main() {
     return e;
   }
   function nearestNode(x, z) {
-    let best = "hub", bd = Infinity;
+    let best = "frontHub", bd = Infinity;
     for (const [k, n] of Object.entries(NODES)) {
       const d = (x - n.x) ** 2 + (z - n.z) ** 2;
       if (d < bd) {
@@ -28133,13 +28251,15 @@ void main() {
   function createPlayer() {
     return {
       x: 0,
-      z: -13,
+      z: -10.6,
       r: TUNING.playerRadius,
       yaw: 0,
-      pitch: 0,
+      pitch: 0.22,
       hp: 100,
       alive: true,
       weapon: "pistol",
+      crouching: false,
+      sprinting: false,
       mag: WEAPONS.pistol.mag,
       cd: 0,
       reloading: 0
@@ -28232,7 +28352,7 @@ void main() {
     thief2.pz = thief2.z;
     if (thief2.stuckT > 1.2) {
       thief2.stuckT = 0;
-      const back = thief2.carry ? "van" : thief2.target ? thief2.target.node : "hub";
+      const back = thief2.carry ? "van" : thief2.target ? thief2.target.node : "frontHub";
       thief2.route = routeTo(nearestNode(thief2.x, thief2.z), back);
       events2.push({ type: "reroute" });
     }
@@ -28275,132 +28395,268 @@ void main() {
   }
 
   // src/humanoid.js
-  var SKIN_TONES = {
-    light: { skin: 14726284, hair: 3811868 },
+  var SKIN = {
+    light: { skin: 14924175, hair: 4863268 },
     medium: { skin: 13208931, hair: 2825491 },
-    deep: { skin: 9067067, hair: 1708556 }
+    deep: { skin: 9067067, hair: 1708556 },
+    olive: { skin: 14198904, hair: 2365970 }
   };
   function createHumanoid(opts = {}) {
-    const tone = SKIN_TONES[opts.tone] || SKIN_TONES.medium;
-    const mat = {
-      skin: new MeshStandardMaterial({ color: tone.skin, roughness: 0.72 }),
-      shirt: new MeshStandardMaterial({ color: opts.shirt ?? 3895252, roughness: 0.85 }),
-      pants: new MeshStandardMaterial({ color: opts.pants ?? 2897218, roughness: 0.92 }),
-      hair: new MeshStandardMaterial({ color: opts.hair ?? tone.hair, roughness: 0.95 }),
-      eye: new MeshStandardMaterial({ color: 1316380, roughness: 0.25 }),
-      metal: new MeshStandardMaterial({ color: 2764341, roughness: 0.45, metalness: 0.65 })
+    const tone = SKIN[opts.tone] || SKIN.medium;
+    const M2 = {
+      skin: new MeshStandardMaterial({ color: tone.skin, roughness: 0.68 }),
+      shirt: new MeshStandardMaterial({ color: opts.shirt ?? 3895252, roughness: 0.88 }),
+      pants: new MeshStandardMaterial({ color: opts.pants ?? 2897218, roughness: 0.93 }),
+      shoe: new MeshStandardMaterial({ color: opts.shoe ?? 1710622, roughness: 0.6 }),
+      hair: new MeshStandardMaterial({ color: opts.hair ?? tone.hair, roughness: 0.96 }),
+      eye: new MeshStandardMaterial({ color: 1316380, roughness: 0.22 }),
+      mouth: new MeshStandardMaterial({ color: 8011832, roughness: 0.7 }),
+      cloth: new MeshStandardMaterial({ color: opts.vest ?? 2830914, roughness: 0.9 }),
+      metal: new MeshStandardMaterial({ color: 2764341, roughness: 0.42, metalness: 0.7 })
     };
-    const group = new Group();
-    const shadow = (m) => {
+    const root = new Group();
+    const cast = (m) => {
       m.castShadow = true;
       m.receiveShadow = true;
       return m;
     };
-    const HIP_Y = 0.9;
-    const makeLeg = (side) => {
-      const pivot = new Group();
-      pivot.position.set(side * 0.105, HIP_Y, 0);
-      const thigh = shadow(new Mesh(new CapsuleGeometry(0.085, 0.6, 4, 10), mat.pants));
-      thigh.position.y = -0.37;
-      pivot.add(thigh);
-      const foot = shadow(new Mesh(new BoxGeometry(0.13, 0.08, 0.26), mat.pants));
-      foot.position.set(0, -0.86, 0.05);
-      pivot.add(foot);
-      group.add(pivot);
-      return pivot;
-    };
+    const box2 = (w, h, d, mat2) => cast(new Mesh(new BoxGeometry(w, h, d), mat2));
+    const cyl2 = (rt, rb, h, mat2, seg = 14) => cast(new Mesh(new CylinderGeometry(rt, rb, h, seg), mat2));
+    const cap = (r, len, mat2) => cast(new Mesh(new CapsuleGeometry(r, len, 5, 12), mat2));
+    const ball = (r, mat2, w = 16, h = 12) => cast(new Mesh(new SphereGeometry(r, w, h), mat2));
+    const HIP_Y = 0.92, KNEE_Y = 0.48, ANKLE_Y = 0.1;
+    const SHOULDER_Y = 1.42, ELBOW_Y = 1.02;
+    function makeLeg(side) {
+      const hip = new Group();
+      hip.position.set(side * 0.105, HIP_Y, 0);
+      hip.add(cap(0.086, 0.27, M2.pants).translateY(-0.22));
+      const knee = new Group();
+      knee.position.y = -(HIP_Y - KNEE_Y);
+      knee.add(cap(0.072, 0.24, M2.pants).translateY(-0.19));
+      const shoe = box2(0.115, 0.095, 0.27, M2.shoe);
+      shoe.position.set(0, -0.435, 0.055);
+      knee.add(shoe);
+      const toe = box2(0.1, 0.06, 0.09, M2.shoe);
+      toe.position.set(0, -0.45, 0.2);
+      knee.add(toe);
+      hip.add(knee);
+      root.add(hip);
+      return { hip, knee };
+    }
     const legL = makeLeg(-1), legR = makeLeg(1);
-    const torso = shadow(new Mesh(new CylinderGeometry(0.205, 0.165, 0.62, 16), mat.shirt));
-    torso.position.y = HIP_Y + 0.31;
-    group.add(torso);
-    const hips = shadow(new Mesh(new CylinderGeometry(0.17, 0.155, 0.18, 14), mat.pants));
-    hips.position.y = HIP_Y - 0.02;
-    group.add(hips);
-    const SHOULDER_Y = HIP_Y + 0.56;
-    const makeArm = (side) => {
-      const pivot = new Group();
-      pivot.position.set(side * 0.225, SHOULDER_Y, 0);
-      const upper = shadow(new Mesh(new CapsuleGeometry(0.062, 0.42, 4, 10), mat.shirt));
-      upper.position.y = -0.27;
-      pivot.add(upper);
-      const hand = shadow(new Mesh(new SphereGeometry(0.072, 10, 8), mat.skin));
-      hand.position.y = -0.52;
-      pivot.add(hand);
-      group.add(pivot);
-      return pivot;
-    };
-    const armL = makeArm(-1), armR = makeArm(1);
-    const neck = shadow(new Mesh(new CylinderGeometry(0.062, 0.072, 0.1, 10), mat.skin));
-    neck.position.y = SHOULDER_Y + 0.06;
-    group.add(neck);
-    const head = new Group();
-    head.position.y = SHOULDER_Y + 0.26;
-    const skull = shadow(new Mesh(new SphereGeometry(0.135, 20, 16), mat.skin));
-    skull.scale.set(0.92, 1.06, 0.96);
-    head.add(skull);
-    const cap = shadow(new Mesh(
-      new SphereGeometry(0.145, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.58),
-      mat.hair
-    ));
-    cap.position.set(0, 8e-3, -0.012);
-    head.add(cap);
+    const pelvis = cyl2(0.175, 0.155, 0.22, M2.pants);
+    pelvis.position.y = HIP_Y - 0.06;
+    root.add(pelvis);
+    const belt = cyl2(0.178, 0.178, 0.045, M2.shoe, 16);
+    belt.position.y = HIP_Y + 0.05;
+    root.add(belt);
+    const chest = cyl2(0.205, 0.172, 0.46, M2.shirt, 18);
+    chest.position.y = HIP_Y + 0.29;
+    root.add(chest);
+    const collar = cyl2(0.115, 0.155, 0.09, M2.shirt, 16);
+    collar.position.y = HIP_Y + 0.545;
+    root.add(collar);
     for (const s of [-1, 1]) {
-      const eye = new Mesh(new SphereGeometry(0.022, 10, 8), mat.eye);
-      eye.position.set(s * 0.05, 0.018, 0.118);
+      const sh = ball(0.098, M2.shirt, 14, 10);
+      sh.position.set(s * 0.195, SHOULDER_Y, 0);
+      root.add(sh);
+    }
+    if (opts.vest) {
+      const vest = cyl2(0.212, 0.182, 0.42, M2.cloth, 18);
+      vest.position.y = HIP_Y + 0.3;
+      root.add(vest);
+    }
+    function makeArm(side) {
+      const sh = new Group();
+      sh.position.set(side * 0.235, SHOULDER_Y, 0);
+      const sleeve = opts.sleeves === "short" ? 0.13 : 0.28;
+      sh.add(cap(0.064, sleeve, M2.shirt).translateY(-0.19));
+      if (opts.sleeves === "short") sh.add(cap(0.056, 0.14, M2.skin).translateY(-0.33));
+      const elbow = new Group();
+      elbow.position.y = -(SHOULDER_Y - ELBOW_Y);
+      elbow.add(cap(0.055, 0.25, M2.skin).translateY(-0.18));
+      const hand = box2(0.085, 0.135, 0.055, M2.skin);
+      hand.position.y = -0.39;
+      elbow.add(hand);
+      const thumb = box2(0.03, 0.06, 0.045, M2.skin);
+      thumb.position.set(side * -0.05, -0.365, 0.015);
+      elbow.add(thumb);
+      sh.add(elbow);
+      root.add(sh);
+      return { sh, elbow };
+    }
+    const armL = makeArm(-1), armR = makeArm(1);
+    const head = new Group();
+    head.position.y = 1.5;
+    const neck = cyl2(0.055, 0.062, 0.11, M2.skin, 10);
+    neck.position.y = 0.03;
+    head.add(neck);
+    const skull = ball(0.137, M2.skin, 22, 18);
+    skull.position.y = 0.145;
+    skull.scale.set(0.94, 1.06, 0.99);
+    head.add(skull);
+    const jaw = ball(0.098, M2.skin, 16, 12);
+    jaw.position.set(0, 0.075, 0.035);
+    jaw.scale.set(1, 0.82, 0.95);
+    head.add(jaw);
+    for (const s of [-1, 1]) {
+      const ear = ball(0.031, M2.skin, 10, 8);
+      ear.position.set(s * 0.128, 0.15, -5e-3);
+      ear.scale.set(0.5, 1, 0.85);
+      head.add(ear);
+      const eye = ball(0.023, M2.eye, 12, 10);
+      eye.position.set(s * 0.05, 0.163, 0.112);
+      eye.scale.set(1, 0.85, 0.6);
       head.add(eye);
     }
-    const nose = new Mesh(new ConeGeometry(0.022, 0.05, 8), mat.skin);
-    nose.rotation.x = Math.PI / 2;
-    nose.position.set(0, -0.012, 0.132);
+    const brow = box2(0.135, 0.02, 0.045, M2.hair);
+    brow.position.set(0, 0.198, 0.104);
+    head.add(brow);
+    const nose = box2(0.034, 0.062, 0.045, M2.skin);
+    nose.position.set(0, 0.132, 0.126);
     head.add(nose);
-    if (opts.beanie) {
-      const beanie = shadow(new Mesh(
-        new SphereGeometry(0.152, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.62),
-        mat.pants
-      ));
-      beanie.position.set(0, 0.012, -5e-3);
-      head.add(beanie);
-    }
-    group.add(head);
-    const gun = new Mesh(new BoxGeometry(0.055, 0.085, 0.3), mat.metal);
-    gun.position.set(0, -0.545, -0.13);
-    gun.castShadow = true;
-    gun.visible = false;
-    armR.add(gun);
-    let phase = 0;
-    function animate({ moving = false, speed = 1, carrying = false, aiming = false, dt = 1 / 60 } = {}) {
-      if (moving) phase += dt * speed * 7.4;
-      const swing = moving ? Math.min(1, speed) : 0;
-      const s = Math.sin(phase);
-      if (carrying) {
-        armL.rotation.x = -1.25;
-        armR.rotation.x = -1.25;
-        armL.rotation.z = 0.16;
-        armR.rotation.z = -0.16;
-        legL.rotation.x = s * 0.42 * swing;
-        legR.rotation.x = -s * 0.42 * swing;
-      } else if (aiming) {
-        armL.rotation.x = -1.45;
-        armR.rotation.x = -1.52;
-        armL.rotation.z = 0.12;
-        armR.rotation.z = -0.02;
-        legL.rotation.x = s * 0.55 * swing;
-        legR.rotation.x = -s * 0.55 * swing;
-      } else {
-        armL.rotation.x = -s * 0.5 * swing;
-        armR.rotation.x = s * 0.5 * swing;
-        armL.rotation.z = 0.06;
-        armR.rotation.z = -0.06;
-        legL.rotation.x = s * 0.58 * swing;
-        legR.rotation.x = -s * 0.58 * swing;
+    const mouth = box2(0.052, 0.014, 0.02, M2.mouth);
+    mouth.position.set(0, 0.078, 0.12);
+    head.add(mouth);
+    const chin = box2(0.055, 0.03, 0.035, M2.skin);
+    chin.position.set(0, 0.045, 0.108);
+    head.add(chin);
+    const style = opts.hairStyle ?? "short";
+    if (style === "bald") {
+    } else if (style === "cap") {
+      const dome = new Mesh(
+        new SphereGeometry(0.148, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.5),
+        M2.cloth
+      );
+      dome.position.y = 0.155;
+      head.add(cast(dome));
+      const brim = box2(0.2, 0.022, 0.13, M2.cloth);
+      brim.position.set(0, 0.152, 0.135);
+      head.add(brim);
+    } else if (style === "beanie") {
+      const dome = new Mesh(
+        new SphereGeometry(0.152, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.62),
+        M2.cloth
+      );
+      dome.position.y = 0.152;
+      head.add(cast(dome));
+      const rim = cyl2(0.152, 0.152, 0.05, M2.cloth, 22);
+      rim.position.y = 0.16;
+      head.add(rim);
+    } else {
+      const dome = new Mesh(
+        new SphereGeometry(0.145, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.56),
+        M2.hair
+      );
+      dome.position.y = 0.15;
+      head.add(cast(dome));
+      if (style === "tied") {
+        const bun = ball(0.062, M2.hair, 14, 12);
+        bun.position.set(0, 0.115, -0.135);
+        head.add(bun);
       }
-      group.position.y = moving ? Math.abs(Math.sin(phase)) * 0.035 * swing : 0;
-      torso.rotation.y = -s * 0.1 * swing;
-      head.rotation.y = s * 0.05 * swing;
+      if (style === "long") {
+        const back = box2(0.2, 0.22, 0.09, M2.hair);
+        back.position.set(0, 0.055, -0.11);
+        head.add(back);
+      }
     }
-    return { group, mat, animate, setGun: (v) => {
-      gun.visible = v;
-    } };
+    root.add(head);
+    const pistol = new Group();
+    {
+      const slide = box2(0.045, 0.055, 0.19, M2.metal);
+      slide.position.z = 0.06;
+      const grip = box2(0.04, 0.1, 0.05, M2.metal);
+      grip.position.set(0, -0.07, -0.015);
+      grip.rotation.x = 0.28;
+      pistol.add(slide, grip);
+    }
+    const shotgun = new Group();
+    {
+      const barrel = cyl2(0.022, 0.022, 0.52, M2.metal, 10);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.z = 0.16;
+      const stock = box2(0.055, 0.075, 0.24, M2.cloth);
+      stock.position.set(0, -0.025, -0.16);
+      const pump = box2(0.05, 0.05, 0.11, M2.cloth);
+      pump.position.z = 0.06;
+      shotgun.add(barrel, stock, pump);
+    }
+    for (const g of [pistol, shotgun]) {
+      g.position.set(0, -0.4, 0.09);
+      g.visible = false;
+      armR.elbow.add(g);
+    }
+    let phase = 0;
+    let breath = 0;
+    function animate(o = {}) {
+      const {
+        moving = false,
+        speed = 1,
+        carrying = false,
+        aiming = false,
+        crouching = false,
+        dt = 1 / 60
+      } = o;
+      if (moving) phase += dt * (5.6 + speed * 2.2);
+      breath += dt * 1.6;
+      const swing = moving ? Math.min(1, 0.35 + speed * 0.65) : 0;
+      const s = Math.sin(phase);
+      legL.hip.rotation.x = -s * 0.62 * swing;
+      legR.hip.rotation.x = s * 0.62 * swing;
+      legL.knee.rotation.x = (0.1 + Math.max(0, Math.sin(phase + 2.3)) * 0.95) * swing + 0.06;
+      legR.knee.rotation.x = (0.1 + Math.max(0, Math.sin(phase + 2.3 + Math.PI)) * 0.95) * swing + 0.06;
+      if (carrying) {
+        armL.sh.rotation.x = -0.95;
+        armR.sh.rotation.x = -0.95;
+        armL.sh.rotation.z = 0.18;
+        armR.sh.rotation.z = -0.18;
+        armL.elbow.rotation.x = -1.15;
+        armR.elbow.rotation.x = -1.15;
+      } else if (aiming) {
+        armL.sh.rotation.x = -1.38;
+        armR.sh.rotation.x = -1.46;
+        armL.sh.rotation.z = 0.16;
+        armR.sh.rotation.z = -0.06;
+        armL.elbow.rotation.x = -0.22;
+        armR.elbow.rotation.x = -0.1;
+      } else {
+        armL.sh.rotation.x = s * 0.55 * swing;
+        armR.sh.rotation.x = -s * 0.55 * swing;
+        armL.sh.rotation.z = 0.07;
+        armR.sh.rotation.z = -0.07;
+        armL.elbow.rotation.x = -(0.24 + Math.max(0, s) * 0.35 * swing);
+        armR.elbow.rotation.x = -(0.24 + Math.max(0, -s) * 0.35 * swing);
+      }
+      const crouch = crouching ? 1 : 0;
+      root.position.y = crouch * -0.34 + (moving ? Math.abs(s) * 0.032 * swing : 0);
+      if (crouching) {
+        legL.hip.rotation.x = -0.55;
+        legR.hip.rotation.x = -0.55;
+        legL.knee.rotation.x = 1.15;
+        legR.knee.rotation.x = 1.15;
+        pelvis.rotation.x = 0.18;
+        chest.rotation.x = 0.12;
+      } else {
+        pelvis.rotation.x = 0;
+        chest.rotation.x = 0.04 + Math.sin(breath) * 0.012;
+      }
+      chest.rotation.y = -s * 0.1 * swing;
+      head.rotation.y = s * 0.05 * swing;
+      head.rotation.x = -0.04 + (crouching ? 0.16 : 0);
+    }
+    return {
+      group: root,
+      animate,
+      setWeapon(w) {
+        pistol.visible = w === "pistol";
+        shotgun.visible = w === "shotgun";
+      },
+      hideWeapon() {
+        pistol.visible = false;
+        shotgun.visible = false;
+      }
+    };
   }
 
   // src/minimap.js
@@ -28421,11 +28677,11 @@ void main() {
   };
   function createMinimap(canvas2) {
     const ctx = canvas2.getContext("2d");
-    const W = canvas2.width, H2 = canvas2.height;
+    const W = canvas2.width, H3 = canvas2.height;
     const spanX = VIEW.maxX - VIEW.minX, spanZ = VIEW.maxZ - VIEW.minZ;
-    const s = Math.min(W / spanX, H2 / spanZ);
+    const s = Math.min(W / spanX, H3 / spanZ);
     const ox = (W - spanX * s) / 2;
-    const oz = (H2 - spanZ * s) / 2;
+    const oz = (H3 - spanZ * s) / 2;
     const mx = (x) => ox + (x - VIEW.minX) * s;
     const mz = (z) => oz + (z - VIEW.minZ) * s;
     function rect(r, fill) {
@@ -28434,9 +28690,9 @@ void main() {
     }
     function draw(player2, thief2, loot2) {
       const px = player2.x, pz = player2.z;
-      ctx.clearRect(0, 0, W, H2);
+      ctx.clearRect(0, 0, W, H3);
       ctx.fillStyle = C.bg;
-      ctx.fillRect(0, 0, W, H2);
+      ctx.fillRect(0, 0, W, H3);
       rect(WORLD.house, C.floorDim);
       for (const f of FURNITURE) rect(f, C.furniture);
       for (const w of WALLS) rect(w, C.wallDim);
@@ -28499,12 +28755,168 @@ void main() {
       ctx.stroke();
       ctx.strokeStyle = C.frame;
       ctx.lineWidth = 1;
-      ctx.strokeRect(0.5, 0.5, W - 1, H2 - 1);
+      ctx.strokeRect(0.5, 0.5, W - 1, H3 - 1);
       ctx.fillStyle = "rgba(255,255,255,.35)";
       ctx.font = "9px ui-monospace, monospace";
       ctx.fillText("N", 6, 12);
     }
     return { draw };
+  }
+
+  // src/textures.js
+  function surface(size = 512) {
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    return [c, c.getContext("2d")];
+  }
+  function finish(canvas2, repeatX, repeatY) {
+    const t = new CanvasTexture(canvas2);
+    t.wrapS = t.wrapT = RepeatWrapping;
+    t.repeat.set(repeatX, repeatY);
+    t.anisotropy = 8;
+    t.colorSpace = SRGBColorSpace;
+    return t;
+  }
+  function noiseLoop(ctx, size, cells, alpha, tint) {
+    const rnd = (x, y) => {
+      const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+    const step = size / cells;
+    for (let y = 0; y < cells; y++) {
+      for (let x = 0; x < cells; x++) {
+        const v = rnd(x, y);
+        ctx.fillStyle = tint(v);
+        ctx.globalAlpha = alpha;
+        ctx.fillRect(x * step, y * step, step + 1, step + 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  function woodFloor() {
+    const [c, g] = surface(512);
+    g.fillStyle = "#7d5a3a";
+    g.fillRect(0, 0, 512, 512);
+    const plank = 64;
+    for (let row = 0; row < 512 / plank; row++) {
+      const y = row * plank;
+      const shift = row % 2 * 96;
+      for (let x = -192; x < 512; x += 192) {
+        const px = x + shift;
+        const shade = 0.86 + (row * 37 + x * 13) % 100 / 380;
+        g.fillStyle = `rgb(${Math.round(138 * shade)},${Math.round(102 * shade)},${Math.round(68 * shade)})`;
+        g.fillRect(px + 1, y + 1, 190, plank - 2);
+      }
+      g.strokeStyle = "rgba(40,26,14,.55)";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(512, y);
+      g.stroke();
+    }
+    g.globalAlpha = 0.16;
+    for (let i = 0; i < 900; i++) {
+      const y = Math.random() * 512;
+      const len = 20 + Math.random() * 90;
+      g.strokeStyle = Math.random() > 0.5 ? "#3b2716" : "#a07a52";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(Math.random() * 512, y);
+      g.bezierCurveTo(0, y + 1, len, y - 1, len * 2, y);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    return finish(c, 6, 6);
+  }
+  function wallPaint(hex = "#ded8cf") {
+    const [c, g] = surface(256);
+    g.fillStyle = hex;
+    g.fillRect(0, 0, 256, 256);
+    noiseLoop(g, 256, 96, 0.05, (v) => v > 0.5 ? "#ffffff" : "#000000");
+    return finish(c, 3, 2);
+  }
+  function brick() {
+    const [c, g] = surface(512);
+    g.fillStyle = "#8d6a56";
+    g.fillRect(0, 0, 512, 512);
+    const bh = 40, bw = 88;
+    for (let row = 0; row * bh < 512; row++) {
+      const y = row * bh;
+      const off = row % 2 * (bw / 2);
+      for (let x = -bw; x < 512 + bw; x += bw) {
+        const s = 0.82 + Math.random() * 0.3;
+        g.fillStyle = `rgb(${Math.round(150 * s)},${Math.round(96 * s)},${Math.round(74 * s)})`;
+        g.fillRect(x + off + 2, y + 2, bw - 4, bh - 4);
+      }
+    }
+    return finish(c, 5, 3);
+  }
+  function grass() {
+    const [c, g] = surface(512);
+    g.fillStyle = "#3d6b39";
+    g.fillRect(0, 0, 512, 512);
+    noiseLoop(g, 512, 128, 0.16, (v) => v > 0.55 ? "#5d9147" : "#2c4f2a");
+    g.globalAlpha = 0.5;
+    for (let i = 0; i < 4e3; i++) {
+      const x = Math.random() * 512, y = Math.random() * 512;
+      g.strokeStyle = Math.random() > 0.5 ? "#6fae55" : "#315a2c";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + (Math.random() - 0.5) * 3, y - 3 - Math.random() * 4);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    return finish(c, 40, 40);
+  }
+  function asphalt() {
+    const [c, g] = surface(256);
+    g.fillStyle = "#4b4b4e";
+    g.fillRect(0, 0, 256, 256);
+    noiseLoop(g, 256, 128, 0.22, (v) => v > 0.5 ? "#5e5e62" : "#3a3a3d");
+    return finish(c, 6, 8);
+  }
+  function rug(hex = "#7a3b3b") {
+    const [c, g] = surface(256);
+    g.fillStyle = hex;
+    g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = "rgba(255,235,190,.35)";
+    g.lineWidth = 3;
+    g.strokeRect(14, 14, 228, 228);
+    g.strokeStyle = "rgba(0,0,0,.28)";
+    g.lineWidth = 2;
+    g.strokeRect(28, 28, 200, 200);
+    for (let i = 0; i < 12; i++) {
+      g.fillStyle = `rgba(${180 + i * 4},${150 - i * 6},${90},.22)`;
+      g.fillRect(40 + i * 3, 40 + i * 3, 176 - i * 6, 176 - i * 6);
+    }
+    return finish(c, 1, 1);
+  }
+  function shingle() {
+    const [c, g] = surface(256);
+    g.fillStyle = "#4a4f55";
+    g.fillRect(0, 0, 256, 256);
+    const rh = 26;
+    for (let row = 0; row * rh < 256; row++) {
+      const y = row * rh, off = row % 2 * 20;
+      for (let x = -40; x < 256 + 40; x += 40) {
+        const s = 0.85 + Math.random() * 0.3;
+        g.fillStyle = `rgb(${Math.round(74 * s)},${Math.round(80 * s)},${Math.round(88 * s)})`;
+        g.fillRect(x + off + 1, y + 1, 38, rh - 2);
+      }
+    }
+    return finish(c, 8, 4);
+  }
+  function buildAll() {
+    return {
+      floor: woodFloor(),
+      wallIn: wallPaint("#ded8cf"),
+      wallOut: brick(),
+      grass: grass(),
+      drive: asphalt(),
+      rug: rug(),
+      roof: shingle()
+    };
   }
 
   // src/game.js
@@ -28513,10 +28925,12 @@ void main() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   var scene = new Scene();
-  scene.background = new Color(9418968);
-  scene.fog = new Fog(9418968, 55, 130);
-  var camera = new PerspectiveCamera(62, 1, 0.1, 400);
+  scene.background = new Color(10339552);
+  scene.fog = new Fog(10339552, 60, 165);
+  var camera = new PerspectiveCamera(64, 1, 0.08, 400);
   function resize() {
     renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight;
@@ -28524,127 +28938,420 @@ void main() {
   }
   addEventListener("resize", resize);
   resize();
-  scene.add(new HemisphereLight(12376304, 4020794, 1.6));
-  var sun = new DirectionalLight(16773848, 2.6);
-  sun.position.set(22, 34, 18);
+  scene.add(new HemisphereLight(13624565, 4216111, 1.15));
+  var sun = new DirectionalLight(16773590, 2.4);
+  sun.position.set(26, 38, 20);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -45;
-  sun.shadow.camera.right = 45;
-  sun.shadow.camera.top = 45;
-  sun.shadow.camera.bottom = -45;
-  sun.shadow.camera.far = 120;
-  sun.shadow.bias = -6e-4;
+  sun.shadow.camera.left = -40;
+  sun.shadow.camera.right = 40;
+  sun.shadow.camera.top = 40;
+  sun.shadow.camera.bottom = -40;
+  sun.shadow.camera.far = 130;
+  sun.shadow.bias = -5e-4;
+  sun.shadow.normalBias = 0.02;
   scene.add(sun);
+  var lampLight = new PointLight(16767392, 0, 7, 2);
+  scene.add(lampLight);
+  var TEX = buildAll();
+  var mat = (o) => new MeshStandardMaterial(o);
   var M = {
-    grass: new MeshStandardMaterial({ color: 4156223, roughness: 1 }),
-    drive: new MeshStandardMaterial({ color: 5526607, roughness: 1 }),
-    wall: new MeshStandardMaterial({ color: 14341839, roughness: 0.9 }),
-    floor: new MeshStandardMaterial({ color: 8018492, roughness: 0.95 }),
-    sofa: new MeshStandardMaterial({ color: 9067066, roughness: 0.95 }),
-    table: new MeshStandardMaterial({ color: 10120002, roughness: 0.8 }),
-    shelf: new MeshStandardMaterial({ color: 7295286, roughness: 0.9 }),
-    van: new MeshStandardMaterial({ color: 11817737, roughness: 0.55, metalness: 0.25 }),
-    glass: new MeshStandardMaterial({ color: 2241348, roughness: 0.15, metalness: 0.6 }),
-    tyre: new MeshStandardMaterial({ color: 1315862, roughness: 1 }),
-    loot: new MeshStandardMaterial({ color: 16101418, emissive: 9067008, emissiveIntensity: 0.9, roughness: 0.4 }),
-    held: new MeshStandardMaterial({ color: 10980346, emissive: 4988309, emissiveIntensity: 0.9, roughness: 0.4 }),
-    trunk: new MeshStandardMaterial({ color: 5979944, roughness: 1 }),
-    leaf: new MeshStandardMaterial({ color: 3107636, roughness: 1 })
+    grass: mat({ map: TEX.grass, roughness: 1 }),
+    drive: mat({ map: TEX.drive, roughness: 1 }),
+    floor: mat({ map: TEX.floor, roughness: 0.72 }),
+    wall: mat({ map: TEX.wallIn, roughness: 0.94 }),
+    rug: mat({ map: TEX.rug, roughness: 1 }),
+    roof: mat({ map: TEX.roof, roughness: 0.95 }),
+    trim: mat({ color: 15921129, roughness: 0.7 }),
+    darkWood: mat({ color: 5914920, roughness: 0.75 }),
+    wood: mat({ color: 9135424, roughness: 0.8 }),
+    paleWood: mat({ color: 11570270, roughness: 0.78 }),
+    fabric: mat({ color: 4873075, roughness: 0.98 }),
+    fabric2: mat({ color: 9067082, roughness: 0.98 }),
+    cushion: mat({ color: 6123922, roughness: 0.98 }),
+    bedding: mat({ color: 14209734, roughness: 0.95 }),
+    pillow: mat({ color: 15789282, roughness: 0.95 }),
+    metal: mat({ color: 10133928, roughness: 0.34, metalness: 0.75 }),
+    steel: mat({ color: 12830925, roughness: 0.28, metalness: 0.8 }),
+    white: mat({ color: 16053490, roughness: 0.5 }),
+    screen: mat({ color: 856343, emissive: 1454666, emissiveIntensity: 0.85, roughness: 0.28 }),
+    glass: mat({ color: 10471144, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.32 }),
+    van: mat({ color: 11817737, roughness: 0.5, metalness: 0.28 }),
+    tyre: mat({ color: 1315862, roughness: 1 }),
+    loot: mat({ color: 16101418, emissive: 10116864, emissiveIntensity: 1, roughness: 0.4 }),
+    held: mat({ color: 10980346, emissive: 5972406, emissiveIntensity: 1, roughness: 0.4 }),
+    trunk: mat({ color: 5979944, roughness: 1 }),
+    leaf: mat({ color: 3502138, roughness: 1 }),
+    lampShade: mat({ color: 16180148, emissive: 16763504, emissiveIntensity: 0.55, roughness: 0.9 })
   };
   var collidables = [];
-  var worldGroup = new Group();
-  scene.add(worldGroup);
-  var box = (w, h, d, mat) => new Mesh(new BoxGeometry(w, h, d), mat);
-  function addBox(x1, z1, x2, z2, h, mat, yBase = 0, opts = {}) {
-    const m = box(x2 - x1, h, z2 - z1, mat);
-    m.position.set((x1 + x2) / 2, yBase + h / 2, (z1 + z2) / 2);
-    m.castShadow = opts.cast !== false;
-    m.receiveShadow = true;
-    worldGroup.add(m);
-    if (opts.solid !== false) collidables.push(m);
-    return m;
+  var world = new Group();
+  scene.add(world);
+  var box = (w, h, d, m) => new Mesh(new BoxGeometry(w, h, d), m);
+  var cyl = (rt, rb, h, m, s = 16) => new Mesh(new CylinderGeometry(rt, rb, h, s), m);
+  function place(mesh, x, y, z, rx = 0, ry = 0, rz = 0) {
+    mesh.position.set(x, y, z);
+    if (rx) mesh.rotation.x = rx;
+    if (ry) mesh.rotation.y = ry;
+    if (rz) mesh.rotation.z = rz;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    world.add(mesh);
+    return mesh;
   }
-  var ground = new Mesh(new PlaneGeometry(220, 220), M.grass);
+  var ground = new Mesh(new PlaneGeometry(240, 240), M.grass);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  worldGroup.add(ground);
-  var drive = new Mesh(new PlaneGeometry(18, 22), M.drive);
+  ground.name = "ground";
+  world.add(ground);
+  var drive = new Mesh(new PlaneGeometry(19, 24), M.drive);
   drive.rotation.x = -Math.PI / 2;
-  drive.position.set(0, 0.01, 8);
+  drive.position.set(0, 0.012, 8);
   drive.receiveShadow = true;
-  worldGroup.add(drive);
-  addBox(
-    WORLD.house.minX,
-    WORLD.house.minZ,
-    WORLD.house.maxX,
-    WORLD.house.maxZ,
-    0.12,
-    M.floor,
-    0,
-    { cast: false, solid: false }
-  );
-  for (const w of WALLS) addBox(w.x1, w.z1, w.x2, w.z2, WORLD.wallHeight, M.wall);
-  for (const w of WALLS) {
-    const m = box(w.x2 - w.x1 + 0.18, 0.22, w.z2 - w.z1 + 0.18, M.wall);
-    m.position.set((w.x1 + w.x2) / 2, WORLD.wallHeight + 0.11, (w.z1 + w.z2) / 2);
-    m.castShadow = true;
-    worldGroup.add(m);
+  world.add(drive);
+  var H2 = WORLD.house;
+  var WH = WORLD.wallHeight;
+  for (const r of [
+    { x1: H2.minX, z1: WORLD.interiorZ, x2: 0, z2: H2.maxZ },
+    // living
+    { x1: 0, z1: WORLD.interiorZ, x2: H2.maxX, z2: H2.maxZ },
+    // kitchen
+    { x1: H2.minX, z1: H2.minZ, x2: 0, z2: WORLD.interiorZ },
+    // bedroom
+    { x1: 0, z1: H2.minZ, x2: H2.maxX, z2: WORLD.interiorZ }
+    // study
+  ]) {
+    const f = new Mesh(new PlaneGeometry(r.x2 - r.x1, r.z2 - r.z1), M.floor);
+    f.rotation.x = -Math.PI / 2;
+    f.position.set((r.x1 + r.x2) / 2, 0.02, (r.z1 + r.z2) / 2);
+    f.receiveShadow = true;
+    world.add(f);
   }
-  for (const f of FURNITURE) addBox(f.x1, f.z1, f.x2, f.z2, f.h, M[f.kind] || M.table);
+  {
+    const slab = box(H2.maxX - H2.minX + 0.6, 0.16, H2.maxZ - H2.minZ + 0.6, M.darkWood);
+    slab.position.set((H2.minX + H2.maxX) / 2, 0.08, (H2.minZ + H2.maxZ) / 2);
+    slab.receiveShadow = true;
+    world.add(slab);
+  }
+  for (const w of WALLS) {
+    const m = box(w.x2 - w.x1, WH, w.z2 - w.z1, M.wall);
+    place(m, (w.x1 + w.x2) / 2, WH / 2, (w.z1 + w.z2) / 2);
+    collidables.push(m);
+  }
+  for (const w of WALLS) {
+    const cap = box(w.x2 - w.x1 + 0.16, 0.2, w.z2 - w.z1 + 0.16, M.trim);
+    place(cap, (w.x1 + w.x2) / 2, WH + 0.1, (w.z1 + w.z2) / 2);
+  }
+  for (const w of WALLS) {
+    const along = w.x2 - w.x1 > w.z2 - w.z1;
+    const bb = box(along ? w.x2 - w.x1 : 0.06, 0.13, along ? 0.06 : w.z2 - w.z1, M.trim);
+    place(bb, (w.x1 + w.x2) / 2, 0.145, (w.z1 + w.z2) / 2);
+  }
+  for (const win of WINDOWS) {
+    const w = win.width, sill = 0.95, top = 2.15, hgt = top - sill, cy = (sill + top) / 2;
+    const alongX = win.wall === "north" || win.wall === "south";
+    const zAt = win.wall === "north" ? H2.minZ + 0.13 : win.wall === "south" ? H2.maxZ - 0.13 : null;
+    const xAt = win.wall === "west" ? H2.minX + 0.13 : win.wall === "east" ? H2.maxX - 0.13 : null;
+    const glass = box(alongX ? w : 0.06, hgt, alongX ? 0.06 : w, M.glass);
+    place(glass, alongX ? win.at : xAt, cy, alongX ? zAt : win.at);
+    const mkFrame = (fw, fh, fd, ox, oy, oz) => place(box(fw, fh, fd, M.trim), (alongX ? win.at : xAt) + ox, cy + oy, (alongX ? zAt : win.at) + oz);
+    const T2 = 0.09;
+    if (alongX) {
+      mkFrame(w + T2 * 2, T2, 0.14, 0, hgt / 2, 0);
+      mkFrame(w + T2 * 2, T2, 0.14, 0, -hgt / 2, 0);
+      mkFrame(T2, hgt, 0.14, -w / 2, 0, 0);
+      mkFrame(T2, hgt, 0.14, w / 2, 0, 0);
+      mkFrame(w, 0.05, 0.12, 0, 0, 0);
+    } else {
+      mkFrame(0.14, T2, w + T2 * 2, 0, hgt / 2, 0);
+      mkFrame(0.14, T2, w + T2 * 2, 0, -hgt / 2, 0);
+      mkFrame(0.14, hgt, T2, 0, 0, -w / 2);
+      mkFrame(0.14, hgt, T2, 0, 0, w / 2);
+      mkFrame(0.12, 0.05, w, 0, 0, 0);
+    }
+  }
+  {
+    const dx = WORLD.doorGap;
+    const door = box(0.06, 2.1, dx.maxX - dx.minX, M.darkWood);
+    door.position.set(dx.maxX + 0.03, 1.05, H2.maxZ - 0.35);
+    door.rotation.y = -1.15;
+    door.castShadow = true;
+    world.add(door);
+    place(box(0.1, 0.1, 2.4, M.trim), dx.minX - 0.05, 2.2, H2.maxZ - 0.05);
+    place(box(0.1, 0.1, 2.4, M.trim), dx.maxX + 0.05, 2.2, H2.maxZ - 0.05);
+  }
+  function buildFurniture(f) {
+    const w = f.x2 - f.x1, d = f.z2 - f.z1;
+    const cx = (f.x1 + f.x2) / 2, cz = (f.z1 + f.z2) / 2;
+    const g = new Group();
+    g.position.set(cx, 0, cz);
+    const add = (m) => {
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+      return m;
+    };
+    const legs = (h, inset = 0.07, m = M.darkWood) => {
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const leg = add(box(0.06, h, 0.06, m));
+        leg.position.set(sx * (w / 2 - inset), h / 2, sz * (d / 2 - inset));
+      }
+    };
+    switch (f.kind) {
+      case "sofa": {
+        add(box(w, 0.32, d, M.fabric)).position.y = 0.2;
+        const back = add(box(w, 0.52, 0.22, M.fabric));
+        back.position.set(0, 0.52, -d / 2 + 0.11);
+        for (const s of [-1, 1]) {
+          const arm = add(box(0.2, 0.24, d, M.fabric));
+          arm.position.set(s * (w / 2 - 0.1), 0.48, 0);
+        }
+        for (let i = -1; i <= 1; i++) {
+          const cu = add(box(w / 3.2, 0.12, d - 0.34, M.cushion));
+          cu.position.set(i * (w / 3.1), 0.42, 0.06);
+        }
+        break;
+      }
+      case "coffeeTable": {
+        add(box(w, 0.06, d, M.wood)).position.y = 0.4;
+        legs(0.4, 0.08);
+        break;
+      }
+      case "sideTable": {
+        add(box(w, 0.05, d, M.wood)).position.y = 0.42;
+        legs(0.42, 0.06);
+        break;
+      }
+      case "tvStand": {
+        add(box(w, 0.44, d, M.darkWood)).position.y = 0.22;
+        const tv = add(box(w * 0.86, 0.62, 0.06, M.screen));
+        tv.position.set(0, 0.8, 0);
+        const stand = add(box(0.16, 0.1, 0.14, M.darkWood));
+        stand.position.y = 0.49;
+        break;
+      }
+      case "rug": {
+        const r = new Mesh(new PlaneGeometry(w, d), M.rug);
+        r.rotation.x = -Math.PI / 2;
+        r.position.y = 0.035;
+        r.receiveShadow = true;
+        g.add(r);
+        break;
+      }
+      case "lamp": {
+        add(cyl(0.13, 0.16, 0.04, M.metal)).position.y = 0.02;
+        add(cyl(0.022, 0.022, 1.28, M.metal)).position.y = 0.66;
+        const shade = add(cyl(0.1, 0.19, 0.26, M.lampShade, 18));
+        shade.position.y = 1.4;
+        break;
+      }
+      case "counter": {
+        add(box(w, 0.86, d, M.paleWood)).position.y = 0.43;
+        add(box(w + 0.04, 0.06, d + 0.04, M.trim)).position.y = 0.89;
+        const splash = add(box(0.03, 0.44, d, M.trim));
+        splash.position.set(w / 2 - 0.015, 1.14, 0);
+        for (let i = 0; i < 3; i++) {
+          const h = add(box(0.02, 0.15, 0.3, M.metal));
+          h.position.set(-w / 2 + 0.01, 0.62, -d / 2 + 0.55 + i * (d - 1.1) / 2);
+        }
+        break;
+      }
+      case "fridge": {
+        add(box(w, f.h, d, M.steel)).position.y = f.h / 2;
+        add(box(0.02, 0.7, 0.03, M.metal)).position.set(-w / 2 + 0.01, 1.05, d / 2 - 0.06);
+        break;
+      }
+      case "diningTable": {
+        add(box(w, 0.07, d, M.wood)).position.y = f.h;
+        legs(f.h, 0.1);
+        break;
+      }
+      case "chair": {
+        add(box(w, 0.06, d, M.wood)).position.y = 0.45;
+        const back = add(box(w, 0.48, 0.05, M.wood));
+        back.position.set(0, 0.69, -d / 2 + 0.03);
+        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          const leg = add(box(0.045, 0.45, 0.045, M.darkWood));
+          leg.position.set(sx * (w / 2 - 0.05), 0.225, sz * (d / 2 - 0.05));
+        }
+        break;
+      }
+      case "bed": {
+        add(box(w, 0.3, d, M.darkWood)).position.y = 0.15;
+        add(box(w - 0.08, 0.22, d - 0.08, M.bedding)).position.y = 0.4;
+        const head = add(box(w, 0.62, 0.1, M.darkWood));
+        head.position.set(0, 0.46, -d / 2 + 0.05);
+        const p1 = add(box(w * 0.42, 0.12, 0.34, M.pillow));
+        p1.position.set(-w * 0.22, 0.55, -d / 2 + 0.32);
+        const p2 = add(box(w * 0.42, 0.12, 0.34, M.pillow));
+        p2.position.set(w * 0.22, 0.55, -d / 2 + 0.32);
+        const quilt = add(box(w - 0.1, 0.1, d * 0.55, M.fabric2));
+        quilt.position.set(0, 0.51, d * 0.2);
+        break;
+      }
+      case "nightstand": {
+        add(box(w, f.h, d, M.wood)).position.y = f.h / 2;
+        add(box(w * 0.7, 0.02, d * 0.6, M.metal)).position.set(0, f.h * 0.62, d / 2 - 0.01);
+        break;
+      }
+      case "wardrobe": {
+        add(box(w, f.h, d, M.darkWood)).position.y = f.h / 2;
+        for (const s of [-1, 1]) {
+          const dd = add(box(w / 2 - 0.02, f.h - 0.1, 0.03, M.wood));
+          dd.position.set(s * w / 4, f.h / 2, d / 2 + 0.01);
+          add(box(0.02, 0.18, 0.02, M.metal)).position.set(s * 0.035, f.h / 2, d / 2 + 0.03);
+        }
+        break;
+      }
+      case "desk": {
+        add(box(w, 0.06, d, M.wood)).position.y = f.h;
+        legs(f.h, 0.08);
+        const mon = add(box(0.68, 0.42, 0.04, M.screen));
+        mon.position.set(-w * 0.18, f.h + 0.34, -d / 2 + 0.14);
+        const stem = add(box(0.05, 0.16, 0.05, M.metal));
+        stem.position.set(-w * 0.18, f.h + 0.11, -d / 2 + 0.14);
+        const kb = add(box(0.42, 0.02, 0.15, M.white));
+        kb.position.set(-w * 0.18, f.h + 0.04, 0.02);
+        break;
+      }
+      case "deskChair": {
+        add(box(w, 0.06, d, M.fabric)).position.y = 0.48;
+        const back = add(box(w, 0.44, 0.06, M.fabric));
+        back.position.set(0, 0.72, -d / 2 + 0.03);
+        add(cyl(0.04, 0.04, 0.45, M.metal)).position.y = 0.24;
+        add(cyl(0.22, 0.24, 0.04, M.metal)).position.y = 0.03;
+        break;
+      }
+      case "bookshelf": {
+        add(box(w, f.h, d, M.darkWood)).position.y = f.h / 2;
+        for (let s = 0; s < 4; s++) {
+          const shelf = add(box(w - 0.06, 0.03, d - 0.1, M.wood));
+          shelf.position.set(0, 0.34 + s * 0.46, 0.02);
+          let bx = -w / 2 + 0.08;
+          while (bx < w / 2 - 0.1) {
+            const bw = 0.025 + Math.random() * 0.03;
+            const bh = 0.2 + Math.random() * 0.14;
+            const bk = add(box(bw, bh, 0.16, new MeshStandardMaterial({
+              color: new Color().setHSL(Math.random(), 0.45, 0.38),
+              roughness: 0.85
+            })));
+            bk.position.set(bx, 0.36 + s * 0.46 + bh / 2, 0.02);
+            bx += bw + 6e-3;
+          }
+        }
+        break;
+      }
+      case "cabinet": {
+        add(box(w, f.h, d, M.darkWood)).position.y = f.h / 2;
+        for (let i = 0; i < 3; i++) {
+          add(box(w * 0.8, 0.3, 0.02, M.wood)).position.set(0, 0.24 + i * 0.36, d / 2 + 0.01);
+          add(box(0.1, 0.02, 0.02, M.metal)).position.set(0, 0.24 + i * 0.36, d / 2 + 0.03);
+        }
+        break;
+      }
+      default: {
+        add(box(w, f.h, d, M.wood)).position.y = f.h / 2;
+      }
+    }
+    world.add(g);
+    if (!f.flat) {
+      const hit = new Mesh(
+        new BoxGeometry(w, f.h, d),
+        new MeshBasicMaterial({ visible: false })
+      );
+      hit.position.y = f.h / 2;
+      g.add(hit);
+      collidables.push(hit);
+    }
+    return g;
+  }
+  for (const f of FURNITURE) buildFurniture(f);
   {
     const v = VAN;
     const van = new Group();
-    const body = box(v.x2 - v.x1, 1.5, v.z2 - v.z1, M.van);
-    body.position.y = 0.95;
-    body.castShadow = true;
-    body.receiveShadow = true;
-    van.add(body);
-    const cab = box((v.x2 - v.x1) * 0.9, 0.75, 1.6, M.van);
-    cab.position.set(0, 1.95, -0.2);
-    cab.castShadow = true;
-    van.add(cab);
-    const windscreen = box((v.x2 - v.x1) * 0.82, 0.5, 0.12, M.glass);
-    windscreen.position.set(0, 1.95, 0.62);
-    van.add(windscreen);
+    van.position.set((v.x1 + v.x2) / 2, 0, (v.z1 + v.z2) / 2);
+    const w = v.x2 - v.x1, d = v.z2 - v.z1;
+    const body = box(w, 1.6, d, M.van);
+    body.position.y = 1.05;
+    const roof = box(w * 0.96, 0.35, d * 0.5, M.van);
+    roof.position.set(0, 1.98, -d * 0.18);
+    const screen = box(w * 0.86, 0.62, 0.08, M.glass);
+    screen.position.set(0, 1.72, d / 2 - 0.42);
+    screen.rotation.x = 0.18;
+    const side = box(0.06, 0.5, 1.5, M.glass);
+    side.position.set(w / 2 - 0.02, 1.7, d / 2 - 1);
+    for (const m of [body, roof, screen, side]) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+      van.add(m);
+    }
     for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const t = new Mesh(new CylinderGeometry(0.42, 0.42, 0.3, 16), M.tyre);
+      const t = new Mesh(new CylinderGeometry(0.44, 0.44, 0.32, 18), M.tyre);
       t.rotation.z = Math.PI / 2;
-      t.position.set(dx * ((v.x2 - v.x1) / 2 - 0.25), 0.42, dz * ((v.z2 - v.z1) / 2 - 0.3));
+      t.position.set(dx * (w / 2 - 0.28), 0.44, dz * (d / 2 - 0.32));
       t.castShadow = true;
       van.add(t);
     }
-    van.position.set((v.x1 + v.x2) / 2, 0, (v.z1 + v.z2) / 2);
-    worldGroup.add(van);
+    world.add(van);
     collidables.push(body);
   }
-  for (const [tx, tz] of [[-20, -14], [19, -16], [-22, 6], [21, 4], [-16, 18], [17, 19]]) {
+  for (const [tx, tz, s] of [[-21, -15, 1], [20, -17, 0.9], [-23, 5, 1.1], [22, 3, 1], [-17, 19, 0.95], [18, 20, 1.05]]) {
     const g = new Group();
-    const trunk = new Mesh(new CylinderGeometry(0.28, 0.36, 3.2, 10), M.trunk);
-    trunk.position.y = 1.6;
+    const trunk = new Mesh(new CylinderGeometry(0.26, 0.38, 3.4, 10), M.trunk);
+    trunk.position.y = 1.7;
     trunk.castShadow = true;
-    const crown = new Mesh(new ConeGeometry(2.1, 4.2, 12), M.leaf);
-    crown.position.y = 4.6;
+    const crown = new Mesh(new ConeGeometry(2.2, 4.6, 12), M.leaf);
+    crown.position.y = 4.9;
     crown.castShadow = true;
-    g.add(trunk, crown);
+    const crown2 = new Mesh(new ConeGeometry(1.7, 3.2, 12), M.leaf);
+    crown2.position.y = 6.4;
+    crown2.castShadow = true;
+    g.add(trunk, crown, crown2);
     g.position.set(tx, 0, tz);
-    worldGroup.add(g);
+    g.scale.setScalar(s);
+    world.add(g);
     collidables.push(trunk);
   }
-  var playerActor = createHumanoid({ tone: "light", shirt: 3104720, pants: 2830914, hair: 4863268 });
+  for (const [sx, sz] of [[-6, -7.3], [-2.6, -7.3], [3.2, -7.3], [6.4, -7.3], [-8.7, -12], [8.7, -16]]) {
+    const b = new Mesh(new SphereGeometry(0.52, 12, 10), M.leaf);
+    b.position.set(sx, 0.42, sz);
+    b.scale.set(1, 0.8, 1);
+    b.castShadow = true;
+    world.add(b);
+  }
+  var playerActor = createHumanoid({
+    tone: "light",
+    shirt: 3104720,
+    pants: 2830914,
+    shoe: 1447964,
+    vest: 2372685,
+    hair: 4863268,
+    hairStyle: "short",
+    sleeves: "long"
+  });
   scene.add(playerActor.group);
-  playerActor.setGun(true);
-  var playerHit = playerActor.group;
-  var thiefActor = createHumanoid({ tone: "medium", shirt: 1778736, pants: 1382945, hair: 1183242, beanie: true });
+  playerActor.setWeapon("pistol");
+  var thiefActor = createHumanoid({
+    tone: "medium",
+    shirt: 1778736,
+    pants: 1382945,
+    shoe: 1052692,
+    vest: 1185825,
+    hair: 1183242,
+    hairStyle: "beanie",
+    sleeves: "long"
+  });
   scene.add(thiefActor.group);
-  var thiefHit = thiefActor.group;
   var lootMeshes = /* @__PURE__ */ new Map();
   for (const l of LOOT_SPOTS) {
-    const m = new Mesh(new BoxGeometry(0.75, 0.7, 0.55), M.loot);
-    m.position.set(l.x, 0.55, l.z);
-    m.castShadow = true;
-    scene.add(m);
-    lootMeshes.set(l.label, m);
+    const g = new Group();
+    const b = new Mesh(new BoxGeometry(0.52, 0.46, 0.4), M.loot);
+    b.castShadow = true;
+    b.position.y = 0.28;
+    g.add(b);
+    g.position.set(l.x, 0, l.z);
+    scene.add(g);
+    lootMeshes.set(l.label, g);
   }
   var minimap = createMinimap(document.getElementById("minimap"));
   var tracerMat = new LineBasicMaterial({ color: 16771496 });
@@ -28664,7 +29371,7 @@ void main() {
   var keys = {};
   var mouseDown = false;
   var yaw = 0;
-  var pitch = 0.22;
+  var pitch = 0.24;
   var hud = {
     hp: document.getElementById("hp"),
     hpbar: document.getElementById("hpbar"),
@@ -28676,7 +29383,8 @@ void main() {
     overlay: document.getElementById("overlay"),
     otitle: document.getElementById("otitle"),
     osub: document.getElementById("osub"),
-    crosshair: document.getElementById("crosshair")
+    crosshair: document.getElementById("crosshair"),
+    stance: document.getElementById("stance")
   };
   function reset() {
     player = createPlayer();
@@ -28687,7 +29395,7 @@ void main() {
     msg = "DEFEND YOUR HOME";
     msgT = 2.4;
     yaw = 0;
-    pitch = 0.22;
+    pitch = 0.24;
     mouseDown = false;
     thiefActor.group.rotation.set(0, 0, 0);
     for (const m of lootMeshes.values()) m.visible = true;
@@ -28710,11 +29418,13 @@ void main() {
       player.weapon = "pistol";
       player.mag = WEAPONS.pistol.mag;
       player.reloading = 0;
+      playerActor.setWeapon("pistol");
     }
     if (k === "2") {
       player.weapon = "shotgun";
       player.mag = WEAPONS.shotgun.mag;
       player.reloading = 0;
+      playerActor.setWeapon("shotgun");
     }
     if (k === "r" && player.reloading <= 0 && player.mag < WEAPONS[player.weapon].mag) {
       player.reloading = WEAPONS[player.weapon].reload;
@@ -28739,14 +29449,23 @@ void main() {
   addEventListener("mousemove", (e) => {
     if (document.pointerLockElement !== canvas) return;
     yaw -= e.movementX * 22e-4;
-    pitch = Math.max(-0.35, Math.min(0.95, pitch + e.movementY * 18e-4));
+    pitch = Math.max(-0.3, Math.min(0.85, pitch + e.movementY * 18e-4));
   });
   var ray = new Raycaster();
+  var isPartOf = (obj, root) => {
+    let o = obj;
+    while (o) {
+      if (o === root) return true;
+      o = o.parent;
+    }
+    return false;
+  };
   function playerShoot() {
     const spec = WEAPONS[player.weapon];
     player.mag--;
     player.cd = spec.cd;
-    const origin = new Vector3(player.x, 1.35, player.z);
+    const eye = player.crouching ? TUNING.crouchEyeHeight : TUNING.eyeHeight;
+    const origin = new Vector3(player.x, eye, player.z);
     const dir = new Vector3(Math.sin(yaw), Math.sin(-pitch), Math.cos(yaw)).normalize();
     for (let p = 0; p < spec.pellets; p++) {
       const d = dir.clone().add(new Vector3(
@@ -28755,8 +29474,9 @@ void main() {
         (Math.random() - 0.5) * spec.spread
       )).normalize();
       ray.set(origin, d);
-      ray.far = 120;
-      const hits = ray.intersectObjects(collidables.concat([thiefHit]), true);
+      ray.far = 140;
+      const targets = collidables.concat(thiefActor.group);
+      const hits = ray.intersectObjects(targets, true);
       const point = hits.length ? hits[0].point.clone() : origin.clone().addScaledVector(d, 90);
       tracer(origin.clone(), point);
       if (hits.length && thief.alive && isPartOf(hits[0].object, thiefActor.group)) {
@@ -28764,14 +29484,6 @@ void main() {
       }
     }
     if (player.mag <= 0) player.reloading = spec.reload;
-  }
-  function isPartOf(obj, root) {
-    let o = obj;
-    while (o) {
-      if (o === root) return true;
-      o = o.parent;
-    }
-    return false;
   }
   function updateHud() {
     const spec = WEAPONS[player.weapon];
@@ -28782,6 +29494,7 @@ void main() {
     hud.ammo.textContent = player.reloading > 0 ? "reloading" : `${player.mag} / ${spec.mag}`;
     hud.stolen.textContent = `${3 - remaining(loot)} / 3`;
     hud.thiefhp.textContent = thief.alive ? `${Math.max(0, Math.ceil(thief.hp))} hp` : "down";
+    hud.stance.textContent = player.crouching ? "CROUCHING" : player.sprinting ? "SPRINTING" : "STANDING";
   }
   function showOverlay(win) {
     hud.overlay.style.display = "flex";
@@ -28799,13 +29512,16 @@ void main() {
       if (keys["s"] || keys["arrowdown"]) mz += 1;
       if (keys["a"] || keys["arrowleft"]) mx -= 1;
       if (keys["d"] || keys["arrowright"]) mx += 1;
+      player.crouching = !!(keys["c"] || keys["control"]);
+      player.sprinting = !!(keys["shift"] && !player.crouching && (mx || mz));
+      const speed = player.crouching ? TUNING.playerCrouchSpeed : player.sprinting ? TUNING.playerSprintSpeed : TUNING.playerSpeed;
       if (mx || mz) {
         playerMoving = true;
         const len = Math.hypot(mx, mz);
         const fx = Math.sin(yaw), fz = Math.cos(yaw);
         const rx = Math.cos(yaw), rz = -Math.sin(yaw);
-        player.x += (fx * -mz + rx * mx) / len * TUNING.playerSpeed * dt;
-        player.z += (fz * -mz + rz * mx) / len * TUNING.playerSpeed * dt;
+        player.x += (fx * -mz + rx * mx) / len * speed * dt;
+        player.z += (fz * -mz + rz * mx) / len * speed * dt;
         resolveCircle(player);
         clampToWorld(player);
       }
@@ -28842,34 +29558,44 @@ void main() {
     playerActor.group.position.set(player.x, 0, player.z);
     playerActor.group.rotation.y = yaw;
     playerActor.group.visible = player.alive;
-    playerActor.animate({ moving: playerMoving, aiming: true, dt });
+    playerActor.animate({
+      moving: playerMoving,
+      speed: player.sprinting ? 1.5 : player.crouching ? 0.4 : 1,
+      aiming: true,
+      crouching: player.crouching,
+      dt
+    });
     const thiefMoving = playing && thief.route.length > 0;
     const thiefSees = playing && canSee(thief.x, thief.z, player.x, player.z, TUNING.thiefSight);
     thiefActor.group.position.set(thief.x, 0, thief.z);
     thiefActor.group.rotation.y = faceDir(thief.yaw);
     thiefActor.group.visible = true;
     thiefActor.group.rotation.z = thief.alive ? 0 : Math.PI / 2;
-    thiefActor.setGun(thief.alive && !thief.carry);
+    if (thief.alive && !thief.carry) thiefActor.setWeapon("pistol");
+    else thiefActor.hideWeapon();
     thiefActor.animate({
       moving: thiefMoving,
-      speed: thief.carry ? 0.8 : 1,
+      speed: thief.carry ? 0.75 : 1,
       carrying: !!thief.carry,
       aiming: thiefSees && !thief.carry,
       dt
     });
-    for (const [label, m] of lootMeshes) {
+    for (const [label, g] of lootMeshes) {
       const l = loot.find((x) => x.label === label);
       const held = thief.carry === label;
-      m.material = held ? M.held : M.loot;
+      g.children[0].material = held ? M.held : M.loot;
       if (held) {
-        m.visible = thief.alive;
-        m.position.set(thief.x, 1.15, thief.z);
+        g.visible = thief.alive;
+        g.position.set(thief.x, 0.95, thief.z);
       } else {
-        m.visible = playing ? !(l.taken || l.delivered) : false;
-        m.position.set(l.x, 0.55, l.z);
+        g.visible = playing ? !(l.taken || l.delivered) : false;
+        g.position.set(l.x, 0, l.z);
       }
     }
-    const dist = 6.2, height = 2.9;
+    lampLight.position.set(-6.95, 1.45, -9.65);
+    lampLight.intensity = 2.6;
+    const eye = player.crouching ? TUNING.crouchEyeHeight : TUNING.eyeHeight;
+    const dist = 5.6, height = eye + 0.75;
     camera.position.set(
       player.x - Math.sin(yaw) * dist * Math.cos(pitch),
       height + Math.sin(pitch) * dist,
@@ -28877,12 +29603,12 @@ void main() {
     );
     camera.lookAt(
       player.x + Math.sin(yaw) * 6,
-      1.5 + Math.sin(-pitch) * 8,
+      eye + Math.sin(-pitch) * 8,
       player.z + Math.cos(yaw) * 6
     );
     for (const s of SOLIDS) {
-      if (camera.position.x > s.x1 - 0.3 && camera.position.x < s.x2 + 0.3 && camera.position.z > s.z1 - 0.3 && camera.position.z < s.z2 + 0.3) {
-        camera.position.y = Math.max(camera.position.y, WORLD.wallHeight + 0.6);
+      if (camera.position.x > s.x1 - 0.25 && camera.position.x < s.x2 + 0.25 && camera.position.z > s.z1 - 0.25 && camera.position.z < s.z2 + 0.25) {
+        camera.position.y = Math.max(camera.position.y, WORLD.wallHeight + 0.5);
       }
     }
     for (let i = tracers.length - 1; i >= 0; i--) {

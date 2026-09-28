@@ -23,12 +23,30 @@ Click once to grab the mouse. `Esc` releases it.
 | Key | Action |
 |---|---|
 | W A S D | move (camera-relative) |
+| Shift | sprint — to chase |
+| C | crouch — to hide, and lowers your sight line |
 | mouse | look |
 | left click | fire |
 | 1 / 2 | pistol / shotgun |
 | R | reload |
 | F11 | fullscreen (in the desktop build) |
 | Enter | restart after a round ends |
+
+## The house
+
+Four rooms — living room, kitchen, bedroom, study — divided by an interior wall
+with a central opening, furnished with a sofa, coffee table, TV, dining set,
+counter and fridge, bed, wardrobe, desk, bookshelf and cabinets. Windows and the
+front door are set into the walls, and light comes from one shadow-casting sun
+plus a lamp in the living room.
+
+Surfaces are **procedurally generated**, not loaded: wood planks, plaster, an
+area rug, asphalt and grass are drawn to a canvas at load time with noise that
+wraps at the edge, so they tile without seams. No image files, nothing to
+license.
+
+The one piece of generated art is `assets/title.png`, made locally with the FLUX
+model. That is the right use of image generation here — it is a flat picture.
 
 ## Rules
 

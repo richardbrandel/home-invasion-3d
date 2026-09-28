@@ -6,7 +6,7 @@
   "scripts": {
     "build": "esbuild src/game.js --bundle --format=iife --minify=false --outfile=dist/bundle.js",
     "build:release": "esbuild src/game.js --bundle --format=iife --minify=true --outfile=dist/bundle.js",
-    "test": "node test/sim.test.js",
+    "test": "node test/sim.test.js && node test/humanoid.test.js",
     "dist": "electron-builder --mac --dir",
     "dist:dmg": "electron-builder --mac"
   },

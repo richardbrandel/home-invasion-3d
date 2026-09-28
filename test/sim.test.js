@@ -50,11 +50,11 @@ check('collision pushes an entity out of a wall', () => {
 })
 
 check('pathfinding returns a connected route', () => {
-  const r = sim.routeTo('van', 'tv')
+  const r = sim.routeTo('van', 'living')
   assert.ok(r.length >= 3, `expected a multi-hop route, got ${JSON.stringify(r)}`)
   const last = r[r.length - 1]
-  assert.equal(last.x, sim.NODES.tv.x)
-  assert.equal(last.z, sim.NODES.tv.z)
+  assert.equal(last.x, sim.NODES.living.x)
+  assert.equal(last.z, sim.NODES.living.z)
 })
 
 console.log('\nthief AI')

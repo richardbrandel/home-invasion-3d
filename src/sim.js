@@ -3,60 +3,106 @@
 // a WebGL context. All logic is in the XZ plane; Y is height and is handled by
 // the renderer only.
 //
-// Units are metres. The player is ~1.7 tall, walls 3, the van 2.4.
+// Units are metres. The player is ~1.8 tall, walls 2.7, the van 2.4.
 
 // ------------------------------------------------------------------ world
 export const WORLD = {
-  bounds: { minX: -28, maxX: 28, minZ: -23, maxZ: 23 },
-  house:  { minX: -12, maxX: 12, minZ: -20, maxZ: -6 },
-  wallHeight: 3,
-  wallThickness: 0.3,
-  doorGap: { minX: -2, maxX: 2 },
+  bounds: { minX: -30, maxX: 30, minZ: -28, maxZ: 24 },
+  house: { minX: -8, maxX: 8, minZ: -19, maxZ: -8 },
+  wallHeight: 2.7,
+  wallThickness: 0.25,
+  doorGap: { minX: -1, maxX: 1 },      // front door, in the south wall
+  hallGap: { minX: -2, maxX: 2 },      // opening in the interior dividing wall
+  interiorZ: -14,                       // the wall splitting front from back
 };
 
-// Solids are axis-aligned boxes in XZ: { x1, z1, x2, z2 }. Used for movement
-// collision, for line-of-sight, and (extruded) as geometry by the renderer.
 const T = WORLD.wallThickness;
 const H = WORLD.house;
+const IZ = WORLD.interiorZ;
 
 export const WALLS = [
-  { x1: H.minX,      z1: H.minZ,      x2: H.maxX,      z2: H.minZ + T },   // north
-  { x1: H.minX,      z1: H.maxZ - T,  x2: WORLD.doorGap.minX, z2: H.maxZ },// south-west
-  { x1: WORLD.doorGap.maxX, z1: H.maxZ - T, x2: H.maxX, z2: H.maxZ },      // south-east
-  { x1: H.minX,      z1: H.minZ,      x2: H.minX + T,  z2: H.maxZ },       // west
-  { x1: H.maxX - T,  z1: H.minZ,      x2: H.maxX,      z2: H.maxZ },       // east
+  // exterior
+  { x1: H.minX, z1: H.minZ, z2: H.minZ + T, x2: H.maxX },                                  // north
+  { x1: H.minX, z1: H.maxZ - T, x2: WORLD.doorGap.minX, z2: H.maxZ },                      // south-west of the door
+  { x1: WORLD.doorGap.maxX, z1: H.maxZ - T, x2: H.maxX, z2: H.maxZ },                      // south-east of the door
+  { x1: H.minX, z1: H.minZ, x2: H.minX + T, z2: H.maxZ },                                  // west
+  { x1: H.maxX - T, z1: H.minZ, x2: H.maxX, z2: H.maxZ },                                  // east
+  // interior divider with a central opening
+  { x1: H.minX, z1: IZ - T / 2, x2: WORLD.hallGap.minX, z2: IZ + T / 2 },
+  { x1: WORLD.hallGap.maxX, z1: IZ - T / 2, x2: H.maxX, z2: IZ + T / 2 },
 ];
 
+// Furniture: { x1, z1, x2, z2, h, kind, flat? }. `flat` items (rugs) are drawn
+// but do not block movement. `kind` drives the renderer's styling.
+//
+// Rooms: front-west = living, front-east = kitchen, back-west = bedroom,
+// back-east = study.
 export const FURNITURE = [
-  { x1: -10.25, z1: -7.95, x2: -7.75, z2: -7.05, kind: 'sofa',  h: 0.85 },
-  { x1:   6.00, z1: -9.50, x2:  8.00, z2: -8.50, kind: 'table', h: 0.75 },
-  { x1:  -2.50, z1: -18.9, x2:  0.50, z2: -18.1, kind: 'shelf', h: 1.80 },
+  // ---- living room (front west)
+  { x1: -7.40, z1: -12.60, x2: -6.20, z2: -9.40, h: 0.80, kind: 'sofa' },
+  { x1: -7.00, z1: -14.10, x2: -6.60, z2: -13.70, h: 0.45, kind: 'sideTable' },
+  { x1: -5.60, z1: -11.70, x2: -4.20, z2: -10.30, h: 0.42, kind: 'coffeeTable' },
+  { x1: -6.40, z1: -13.60, x2: -4.20, z2: -13.10, h: 0.50, kind: 'tvStand' },
+  { x1: -7.60, z1: -8.60, x2: -3.20, z2: -10.40, h: 0.02, kind: 'rug', flat: true },
+  { x1: -7.30, z1: -9.90, x2: -6.85, z2: -9.45, h: 1.60, kind: 'lamp' },
+
+  // ---- kitchen (front east)
+  { x1: 6.60, z1: -13.00, x2: 7.75, z2: -9.00, h: 0.92, kind: 'counter' },
+  { x1: 6.70, z1: -13.85, x2: 7.70, z2: -13.05, h: 1.85, kind: 'fridge' },
+  { x1: 2.60, z1: -12.40, x2: 4.60, z2: -10.90, h: 0.75, kind: 'diningTable' },
+  { x1: 3.15, z1: -10.75, x2: 3.70, z2: -10.25, h: 0.90, kind: 'chair' },
+  { x1: 3.55, z1: -13.00, x2: 4.10, z2: -12.55, h: 0.90, kind: 'chair' },
+
+  // ---- bedroom (back west)
+  { x1: -7.40, z1: -18.60, x2: -5.00, z2: -16.40, h: 0.55, kind: 'bed' },
+  { x1: -7.40, z1: -16.20, x2: -6.90, z2: -15.70, h: 0.55, kind: 'nightstand' },
+  { x1: -4.60, z1: -18.70, x2: -3.40, z2: -18.10, h: 2.00, kind: 'wardrobe' },
+  { x1: -6.80, z1: -15.60, x2: -3.00, z2: -14.60, h: 0.02, kind: 'rug', flat: true },
+
+  // ---- study (back east)
+  { x1: 5.50, z1: -17.40, x2: 7.50, z2: -16.30, h: 0.75, kind: 'desk' },
+  { x1: 5.00, z1: -16.10, x2: 5.60, z2: -15.50, h: 0.95, kind: 'deskChair' },
+  { x1: 0.60, z1: -18.60, x2: 1.40, z2: -16.00, h: 2.00, kind: 'bookshelf' },
+  { x1: 0.70, z1: -15.60, x2: 1.30, z2: -15.00, h: 1.30, kind: 'cabinet' },
 ];
 
-export const SOLIDS = WALLS.concat(FURNITURE);
+export const SOLIDS = WALLS.concat(FURNITURE.filter(f => !f.flat));
+
+// Windows and the door frame are rendered by the client but do not affect
+// collision, so they live here as data rather than as solids.
+export const WINDOWS = [
+  { wall: 'north', at: -5.0, width: 1.8 },
+  { wall: 'north', at: 2.5, width: 1.8 },
+  { wall: 'west', at: -11.5, width: 1.6 },
+  { wall: 'east', at: -11.0, width: 1.6 },
+  { wall: 'south', at: -5.5, width: 1.4 },
+  { wall: 'south', at: 5.5, width: 1.4 },
+];
 
 export const VAN = { x1: -2.75, z1: 7.0, x2: 2.75, z2: 9.4, h: 2.4 };
 export const DROP = { x: 0, z: 4.5 };
 
+// Loot sits on the floor at a spot the thief can actually reach, next to the
+// furniture it visually belongs to. Keeping it off the furniture is what lets
+// the reachability test stay strict.
 export const LOOT_SPOTS = [
-  { x: -8.0, z: -17.0, label: 'TV',     node: 'tv',   value: 1 },
-  { x:  8.0, z: -17.0, label: 'Laptop', node: 'pc',   value: 1 },
-  { x: -8.0, z:  -9.5, label: 'Safe',   node: 'safe', value: 1 },
+  { x: -5.30, z: -12.90, label: 'TV',     node: 'living' },
+  { x: 6.60, z: -16.05, label: 'Laptop', node: 'study' },
+  { x: -4.20, z: -17.60, label: 'Safe',   node: 'bedroom' },
 ];
 
-// Navigation graph. Every edge is a straight line through open floor — checked
-// by test/sim.test.js, which asserts no edge crosses a solid.
+// Navigation graph. Every edge is a straight line through open floor — the test
+// suite asserts none of them crosses a solid.
 export const NODES = {
-  van:     { x: 0,    z: 4.5,   edges: ['doorOut'] },
-  doorOut: { x: 0,    z: 2.5,   edges: ['van', 'doorIn'] },
-  // NOTE: doorIn deliberately has no direct edge to `safe`. The straight line
-  // clips the south wall's corner at the door jamb, which wedged the thief.
-  // Everything routes hub-first instead. test/sim.test.js guards this.
-  doorIn:  { x: 0,    z: -4.5,  edges: ['doorOut', 'hub'] },
-  hub:     { x: 0,    z: -12,   edges: ['doorIn', 'tv', 'pc', 'safe'] },
-  tv:      { x: -6.5, z: -14.5, edges: ['hub'] },
-  pc:      { x: 6.5,  z: -14.5, edges: ['hub'] },
-  safe:    { x: -6.5, z: -9.5,  edges: ['hub'] },
+  van:      { x: 0,    z: 5.0,   edges: ['doorOut'] },
+  doorOut:  { x: 0,    z: -5.0,  edges: ['van', 'doorIn'] },
+  doorIn:   { x: 0,    z: -9.6,  edges: ['doorOut', 'frontHub'] },
+  frontHub: { x: 0,    z: -11.2, edges: ['doorIn', 'living', 'kitchen', 'opening'] },
+  living:   { x: -3.6, z: -11.2, edges: ['frontHub'] },
+  kitchen:  { x: 4.5,  z: -9.6,  edges: ['frontHub'] },
+  opening:  { x: 0,    z: -14.0, edges: ['frontHub', 'bedroom', 'study'] },
+  bedroom:  { x: -4.4, z: -15.6, edges: ['opening'] },
+  study:    { x: 6.5,  z: -15.5, edges: ['opening'] },
 };
 
 // ------------------------------------------------------------------ weapons
@@ -66,10 +112,14 @@ export const WEAPONS = {
 };
 
 export const TUNING = {
-  playerSpeed: 4.6,
-  playerRadius: 0.45,
+  playerSpeed: 4.2,
+  playerSprintSpeed: 6.6,
+  playerCrouchSpeed: 2.0,
+  playerRadius: 0.42,
+  eyeHeight: 1.62,
+  crouchEyeHeight: 1.05,
   thiefSpeed: 2.6,
-  thiefRadius: 0.45,
+  thiefRadius: 0.42,
   thiefHealth: 100,
   thiefDamage: 9,
   thiefSight: 26,
@@ -90,7 +140,7 @@ export function segRect(x1, z1, x2, z2, r) {
     if (p[i] === 0) { if (q[i] < 0) return false; continue; }
     const t = q[i] / p[i];
     if (p[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
-    else          { if (t < t0) return false; if (t < t1) t1 = t; }
+    else { if (t < t0) return false; if (t < t1) t1 = t; }
   }
   return true;
 }
@@ -197,7 +247,7 @@ export function clampToWorld(e) {
 
 // ------------------------------------------------------------------ pathing
 export function nearestNode(x, z) {
-  let best = 'hub', bd = Infinity;
+  let best = 'frontHub', bd = Infinity;
   for (const [k, n] of Object.entries(NODES)) {
     const d = (x - n.x) ** 2 + (z - n.z) ** 2;
     if (d < bd) { bd = d; best = k; }
@@ -233,8 +283,8 @@ export function routeTo(fromKey, toKey) {
 // ------------------------------------------------------------------ entities
 export function createPlayer() {
   return {
-    x: 0, z: -13, r: TUNING.playerRadius, yaw: 0, pitch: 0,
-    hp: 100, alive: true, weapon: 'pistol',
+    x: 0, z: -10.6, r: TUNING.playerRadius, yaw: 0, pitch: 0.22,
+    hp: 100, alive: true, weapon: 'pistol', crouching: false, sprinting: false,
     mag: WEAPONS.pistol.mag, cd: 0, reloading: 0,
   };
 }
@@ -293,8 +343,6 @@ export function stepThief(thief, ctx, dt, tuning = TUNING) {
       thief.mode = 'hunt';
       const targetGone = !thief.target || thief.target.delivered || thief.target.taken;
       if (targetGone) {
-        // choose the nearest remaining item, but re-evaluate periodically rather
-        // than every frame so the thief commits to a plan like a person would
         thief.target = avail.reduce((a, b) =>
           Math.hypot(thief.x - a.x, thief.z - a.z) < Math.hypot(thief.x - b.x, thief.z - b.z) ? a : b);
         thief.route = routeTo(nearestNode(thief.x, thief.z), thief.target.node);
@@ -333,7 +381,7 @@ export function stepThief(thief, ctx, dt, tuning = TUNING) {
 
   if (thief.stuckT > 1.2) {
     thief.stuckT = 0;
-    const back = thief.carry ? 'van' : (thief.target ? thief.target.node : 'hub');
+    const back = thief.carry ? 'van' : (thief.target ? thief.target.node : 'frontHub');
     thief.route = routeTo(nearestNode(thief.x, thief.z), back);
     events.push({ type: 'reroute' });
   }
