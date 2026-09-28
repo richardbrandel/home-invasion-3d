@@ -1,0 +1,22 @@
+// SteamPipe depot build script — describes which files land in the depot.
+//
+// ContentRoot is relative to this file. Everything under ./content is uploaded,
+// so steam/package.sh is what assembles that directory from the built app.
+"DepotBuildConfig"
+{
+	"DepotID"     "YOUR_DEPOT_ID"
+	"ContentRoot" "./content"
+
+	"FileMapping"
+	{
+		"LocalPath" "*"
+		"DepotPath" "."
+		"recursive" "1"
+	}
+
+	// Never ship these
+	"FileExclusion" "*.DS_Store"
+	"FileExclusion" "*.log"
+	"FileExclusion" "*.dSYM"
+	"FileExclusion" "**/node_modules/**"
+}

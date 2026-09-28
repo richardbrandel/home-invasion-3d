@@ -1,0 +1,11 @@
+# dependencies
+node_modules/
+
+# build output that is regenerated
+release/
+steam/build/
+steam/content/
+
+# OS noise
+.DS_Store
+*.log

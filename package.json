@@ -1,0 +1,35 @@
+{
+  "name": "home-invasion-3d",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Home Invasion 3D - top-down defence game with a third-person camera",
+  "scripts": {
+    "build": "esbuild src/game.js --bundle --format=iife --minify=false --outfile=dist/bundle.js",
+    "build:release": "esbuild src/game.js --bundle --format=iife --minify=true --outfile=dist/bundle.js",
+    "test": "node test/sim.test.js",
+    "dist": "electron-builder --mac --dir",
+    "dist:dmg": "electron-builder --mac"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.186.1"
+  },
+  "type": "module",
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "org.example.homeinvasion",
+    "productName": "Home Invasion 3D",
+    "files": [
+      "index.html",
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": "dir",
+      "category": "public.app-category.action-games"
+    }
+  }
+}

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Invasion 3D</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; padding:0; height:100%; overflow:hidden; background:#0b0d0f;
+              font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#e8e6e3; }
+  #view { display:block; width:100vw; height:100vh; }
+
+  #hud { position:fixed; inset:0; pointer-events:none; }
+  .panel {
+    position:absolute; background:rgba(0,0,0,.52); border:1px solid rgba(255,255,255,.10);
+    border-radius:8px; padding:9px 12px; backdrop-filter: blur(6px);
+  }
+  #left  { left:14px; top:14px; width:250px; }
+  #mid   { left:280px; top:14px; width:210px; }
+  #right { right:14px; top:14px; width:230px; }
+  .label { font-size:10px; letter-spacing:.14em; color:#9ca3af; text-transform:uppercase; }
+  .big   { font-size:22px; font-weight:700; margin-top:3px; }
+  #bar   { height:10px; margin-top:6px; background:rgba(255,255,255,.14); border-radius:5px; overflow:hidden; }
+  #hpbar { height:100%; width:100%; background:#22c55e; transition:width .12s linear, background .2s; }
+
+  #crosshair {
+    position:fixed; left:50%; top:50%; width:18px; height:18px; margin:-9px 0 0 -9px;
+    pointer-events:none; opacity:.35; transition:opacity .15s;
+  }
+  #crosshair::before, #crosshair::after {
+    content:''; position:absolute; background:#fff; box-shadow:0 0 3px #000;
+  }
+  #crosshair::before { left:8px; top:0; width:2px; height:18px; }
+  #crosshair::after  { top:8px; left:0; height:2px; width:18px; }
+
+  #banner {
+    position:fixed; left:0; right:0; top:16%; text-align:center;
+    font-size:26px; font-weight:700; color:#fde68a; text-shadow:0 2px 10px rgba(0,0,0,.85);
+    pointer-events:none;
+  }
+
+  #overlay {
+    position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.78); gap:10px; text-align:center;
+  }
+  #otitle { font-size:52px; font-weight:800; letter-spacing:.02em; }
+  #osub   { font-size:15px; color:#d1d5db; max-width:640px; }
+  #oagain { font-size:13px; color:#9ca3af; margin-top:14px; }
+
+  #start {
+    position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.72); gap:14px; text-align:center; cursor:pointer;
+  }
+  #start h1 { font-size:46px; margin:0; letter-spacing:.03em; }
+  #start .keys { font-size:13px; color:#cbd5e1; line-height:2; }
+  #start .cta { margin-top:8px; font-size:14px; color:#fde68a; }
+  kbd { background:rgba(255,255,255,.12); border-radius:4px; padding:2px 7px; font-size:12px; }
+
+  /* Minimap, lower right. The intruder appears here ONLY when the homeowner has
+     line of sight — see src/minimap.js */
+  #mapwrap {
+    position:fixed; right:14px; bottom:14px; padding:6px;
+    background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12);
+    border-radius:10px; backdrop-filter: blur(6px); pointer-events:none;
+  }
+  #minimap { display:block; border-radius:6px; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="hud">
+  <div class="panel" id="left">
+    <div class="label">Health</div>
+    <div class="big"><span id="hp">100</span></div>
+    <div id="bar"><div id="hpbar"></div></div>
+  </div>
+
+  <div class="panel" id="mid">
+    <div class="label">Weapon</div>
+    <div class="big" id="weapon">Pistol</div>
+    <div class="label" style="margin-top:6px" id="ammo">12 / 12</div>
+  </div>
+
+  <div class="panel" id="right">
+    <div class="label">Loot stolen</div>
+    <div class="big"><span id="stolen">0 / 3</span></div>
+    <div class="label" style="margin-top:6px">thief: <span id="thiefhp">100 hp</span></div>
+  </div>
+</div>
+
+<div id="crosshair"></div>
+<div id="banner"></div>
+
+<div id="mapwrap"><canvas id="minimap" width="240" height="190"></canvas></div>
+
+<div id="overlay">
+  <div id="otitle">HOME DEFENDED</div>
+  <div id="osub"></div>
+  <div id="oagain">press ENTER to play again</div>
+</div>
+
+<div id="start">
+  <h1>HOME INVASION 3D</h1>
+  <div class="keys">
+    <kbd>W A S D</kbd> move &nbsp;&middot;&nbsp; <kbd>mouse</kbd> look &nbsp;&middot;&nbsp; <kbd>click</kbd> fire<br>
+    <kbd>1</kbd> pistol &nbsp;&middot;&nbsp; <kbd>2</kbd> shotgun &nbsp;&middot;&nbsp; <kbd>R</kbd> reload &nbsp;&middot;&nbsp; <kbd>Esc</kbd> release mouse
+  </div>
+  <div class="cta">click anywhere to begin</div>
+</div>
+
+<!-- Built by esbuild into a single classic script. Deliberately NOT type="module":
+     ES modules are blocked by CORS when the page is opened from file://, which
+     would break double-click-to-run and offline Steam builds alike. -->
+<script src="dist/bundle.js"></script>
+<script>
+  // dismiss the start card and grab the pointer
+  document.getElementById('start').addEventListener('click', function () {
+    this.style.display = 'none'
+    document.getElementById('view').click()
+  })
+</script>
+</body>
+</html>

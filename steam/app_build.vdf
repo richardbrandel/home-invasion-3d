@@ -1,0 +1,23 @@
+// SteamPipe app build script.
+//
+//   * Replace YOUR_APP_ID and YOUR_DEPOT_ID with the values Steamworks gives you
+//     after you pay the $100 Steam Direct fee. They are not guessable.
+//   * Run from the steam/ directory:
+//         steamcmd +login <your_steam_login> +run_app_build "$PWD/app_build.vdf" +quit
+//   * "setlive" left empty stages the build WITHOUT pushing it to the default
+//     branch. Set it to a branch name (e.g. "beta") when you are ready to test.
+"appbuild"
+{
+	"appid"        "YOUR_APP_ID"
+	"desc"         "Home Invasion 3D"
+	"buildoutput"  "./build"
+	"contentroot"  "./content"
+	"setlive"      ""
+	"preview"      "0"
+	"local"        ""
+
+	"depots"
+	{
+		"YOUR_DEPOT_ID" "depot_build.vdf"
+	}
+}
