@@ -1,6 +1,6 @@
 # Publishing Home Invasion 3D on Steam
 
-Everything here is ready except the parts that require **your identity**. This
+Everything here is ready except the parts that require a **legal identity**. This
 document is explicit about where that line is, so nothing is a surprise later.
 
 ## What is already done
@@ -10,17 +10,28 @@ document is explicit about where that line is, so nothing is a surprise later.
 - `package.sh` — builds the app and stages it into `steam/content/`
 - `app_build.vdf` and `depot_build.vdf` — SteamPipe build scripts
 
-## What only you can do
+## Who does what
+
+Two roles, and they need not be the same person:
+
+- **Developer** — owns the code and builds the depots. That is this repository.
+- **Publisher** — owns the Steamworks account. Everything below is theirs.
+
+If someone else publishes on your behalf, the steps below are theirs, not yours.
+Agree in writing between you who owns the game, who keeps the revenue, and what
+happens if either side wants out. A repository licence is not that agreement.
+
+## What only the publisher can do
 
 | Step | Why it can't be automated |
 |---|---|
-| Steamworks partner account | Requires your legal identity and government ID verification |
-| Tax forms (W-9 / W-8BEN) | Your tax identity |
+| Steamworks partner account | Requires a legal identity and government ID verification |
+| Tax forms (W-9 / W-8BEN) | The account holder's tax identity |
 | Banking details | Payouts must land in a human's account |
 | **$100 Steam Direct fee, per game** | Recoupable at $1,000 adjusted gross revenue, but paid up front |
-| App ID and Depot ID | Issued to your account; they are not guessable |
-| `steamcmd` login | Your Steam credentials, with 2FA — interactive by design |
-| **AI content disclosure** | Filed in your name, on your store page |
+| App ID and Depot ID | Issued to that account; they are not guessable |
+| `steamcmd` login | That account's credentials, with 2FA — interactive by design |
+| **AI content disclosure** | Filed in the publisher's name, on the store page |
 
 ## Costs and timing to expect
 
